@@ -118,6 +118,8 @@ def qrg2band_khz(qrg_khz):
         return "160m"
     if 3000 < f < 4000:
         return "80m"
+    if 5000 < f < 6000:
+        return "60m"
     if 6000 < f < 8000:
         return "40m"
     if 9000 < f < 11000:
@@ -313,7 +315,7 @@ class DXClusterClient(threading.Thread):
                                 "spotted": spotted,
                                 "frequency": str(int(float(freq))),
                                 "message": msg,
-                                "when": when.isoformat().replace("+00:00", "Z"),
+                                "when": parse_z_time(m.group("time")).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
                                 "source": detect_source_from_message(msg),
                                 "band": qrg2band_khz(freq),
                             }
@@ -341,12 +343,11 @@ class DXClusterClient(threading.Thread):
                                 message = m2.group("message").strip()
                                 spotter = m2.group("spotter")
 
-                                # combine date + time into datetime
-                                now = datetime.now(timezone.utc)
+                                # combine date + time into datetime with seconds and milliseconds zeroed
                                 dt = datetime.strptime(f"{date_str} {timestr}", "%d-%b-%Y %H%MZ").replace(
                                     tzinfo=timezone.utc,
-                                    second=now.second,
-                                    microsecond=now.microsecond
+                                    second=0,
+                                    microsecond=0
                                 )
                                 if via:
                                     message = f"{message} via {via}"
@@ -396,17 +397,15 @@ def parse_z_time(timestr):
             hh, mm = int(t[0]), int(t[1:3])
         else:
             hh, mm = int(t[0:2]), int(t[2:4])
-        # Include current seconds and microseconds
         when = datetime(
             now.year, now.month, now.day,
-            hh, mm, now.second, now.microsecond,
+            hh, mm, 0, 0,
             tzinfo=timezone.utc
         )
-        # Adjust for previous day if necessary
         if when - now > timedelta(hours=12):
             when -= timedelta(days=1)
         return when
-    return now
+    return datetime(now.year, now.month, now.day, 0, 0, 0, 0, tzinfo=timezone.utc)
 
 
 def detect_source_from_message(msg):
@@ -558,25 +557,6 @@ h1,h2,h3 { margin:0; }
     margin-bottom: 10px;
 }
 
-/* Terminal styles */
-.terminal {
-    background: #1e1e1e;
-    color: #d4d4d4;
-    font-family: "Courier New", Courier, monospace;
-    font-size: 13px;
-    padding: 10px;
-    border-radius: 8px;
-    max-height: 400px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    line-height: 1.3em;
-    box-shadow: inset 0 0 8px rgba(0,0,0,0.5);
-}
-.terminal-line {
-    padding: 1px 0;
-}
-.terminal-line:nth-child(even) { background: rgba(255,255,255,0.02); }
-
 /* Footer */
 .footer { position:fixed; bottom:0; left:0; width:100%; background:#222; color:white; padding:10px 20px; display:flex; gap:25px; font-weight:600; align-items:center; }
 
@@ -614,14 +594,34 @@ h1,h2,h3 { margin:0; }
 <!-- Recent Spots Terminal -->
 <div class="spots-panel">
   <h2>Recent Spots</h2>
-  <div class="terminal" id="spotsTerminal">
-    {% for s in recent %}
-      <div class="terminal-line">
-        {{ s.when }} | {{ s.spotter }} -> {{ s.spotted }} | {{ s.frequency }}kHz | {{ s.band }} | {{ s.message|e|replace('\n',' ')|safe }}
-      </div>
-    {% endfor %}
+  <div style="overflow:auto; max-height:400px; border:1px solid #ccc; border-radius:8px;">
+    <table id="spotsTable" style="width:100%; border-collapse:collapse;">
+      <thead style="position:sticky; top:0; background:#007bff; color:white; z-index:1;">
+        <tr>
+          <th style="padding:4px;">Time</th>
+          <th style="padding:4px;">From</th>
+          <th style="padding:4px;">DX</th>
+          <th style="padding:4px;">Freq (kHz)</th>
+          <th style="padding:4px;">Band</th>
+          <th style="padding:4px;">Message</th>
+        </tr>
+      </thead>
+      <tbody id="spotsTableBody">
+        {% for s in recent %}
+        <tr>
+          <td>{{ s.when }}</td>
+          <td>{{ s.spotter }}</td>
+          <td>{{ s.spotted }}</td>
+          <td>{{ s.frequency }}</td>
+          <td>{{ s.band }}</td>
+          <td>{{ s.message|e|replace('\n',' ')|safe }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
+
 <!-- Send Spot Form -->
 <div class="spots-panel">
   <h2>Send Spot</h2>
@@ -840,37 +840,43 @@ function restartClient(){
   fetch('/restart', {method:'POST'}).then(()=>alert('DXCluster client restarting...')).catch(err=>alert('Error: '+err));
 }
 
-// Periodic updates
-setInterval(fetchSpots,5000);
-setInterval(fetchStatus,5000);
-
 function fetchSpots(){
-  fetch('/spots').then(r=>r.json()).then(data=>{
-    const term = document.getElementById('spotsTerminal');
-    term.innerHTML = '';
-    
-    // Oldest first, newest last
-    data.slice().reverse().forEach(s => {
-      const div = document.createElement('div');
-      div.className = 'terminal-line';
-      div.textContent = `${s.when} | ${s.spotter} -> ${s.spotted} | ${s.frequency}kHz | ${s.band} | ${s.message}`;
-      term.appendChild(div);
-    });
+  fetch('/spots/').then(r=>r.json()).then(data=>{
+    const tbody = document.getElementById('spotsTableBody');
+    tbody.innerHTML = '';
 
-    // Scroll to bottom
-    setTimeout(() => { 
-      term.scrollTop = term.scrollHeight; 
-    }, 10);
+    // Newest first
+    data.forEach(s => {
+      const tr = document.createElement('tr');
+      tbody.appendChild(tr);
+      tr.innerHTML = `
+        <td>${s.when}</td>
+        <td>${s.spotter}</td>
+        <td>${s.spotted}</td>
+        <td>${s.frequency}</td>
+        <td>${s.band}</td>
+        <td>${s.message}</td>
+      `;
+    });
   }).catch(console.error);
 }
 
-function fetchStatus(){
-  fetch('/stats').then(r=>r.json()).then(data=>{
-    const connElem=document.getElementById('connectionStatus');
-    const cachedElem=document.getElementById('cachedSpots');
-    connElem.innerHTML='DXCluster connection: <span style="color:'+(data.connected?'#28a745':'#dc3545')+'">'+(data.connected?'Connected':'Disconnected')+'</span>';
-    cachedElem.innerHTML='Cached spots: '+data.entries;
-  }).catch(console.error);
+function fetchStatus() {
+    fetch('/stats')
+        .then(response => response.json())
+        .then(data => {
+            const div = document.getElementById('connectionStatus');
+            if (data.connected) {
+                div.innerHTML = 'DXCluster connection: <span style="color:#28a745;">Connected</span>';
+            } else {
+                div.innerHTML = 'DXCluster connection: <span style="color:#dc3545;">Disconnected</span>';
+            }
+        })
+        .catch(err => {
+            const div = document.getElementById('connectionStatus');
+            div.innerHTML = 'DXCluster connection: <span style="color:#dc3545;">Error</span>';
+            console.error('Failed to fetch status:', err);
+        });
 }
 
 function sendSpotJS(event){
@@ -899,6 +905,9 @@ function sendSpotJS(event){
     });
     return false;
 }
+// Periodic updates
+setInterval(fetchSpots,5000);
+setInterval(fetchStatus,5000);
 </script>
 </body>
 </html>
