@@ -1,0 +1,16 @@
+[Unit]
+Description=DXCluster Cache
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/dxcluster_cache
+ExecStart=/usr/bin/python3 /opt/dxcluster_cache/dxcluster_cache.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

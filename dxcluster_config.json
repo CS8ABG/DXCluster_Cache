@@ -1,0 +1,11 @@
+{
+  "host": "dxfun.com",
+  "port": 8000,
+  "call": "N0CALL",
+  "maxcache": 500,
+  "webport": 8000,
+  "dxcc_lookup_url": "https://log.your.site/api/lookup",
+  "dxcc_lookup_key": "your-api-key-here",
+  "portal_user": "",
+  "portal_pass": ""
+}

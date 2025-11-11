@@ -1,0 +1,4 @@
+flask
+requests
+telnetlib3
+waitress
