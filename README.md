@@ -1,3 +1,4 @@
+![Dashboard](./screenshot.png)
 # DXCluster Cache
 
 **DXCluster Cache** is a lightweight Python service that connects to a **DX Cluster** and parses real-time DX spots, caches them in memory, enriches them with DXCC lookup data, and provides a **web portal** + **REST API** for viewing and managing spot data.
