@@ -138,7 +138,8 @@ sudo apt install -y python3 python3-pip python3-venv
 ### 2. Clone from Git:
 
 ```bash
-sudo git clone https://github.com/yourusername/dxcluster_cache.git /opt/dxcluster_cache
+
+sudo git clone https://github.com/CS8ABG/DXCluster_Cache.git /opt/dxcluster_cache
 cd /opt/dxcluster_cache
 ```
 
