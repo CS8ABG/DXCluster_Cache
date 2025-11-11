@@ -1,4 +1,4 @@
-# 📡 DXCluster Cache
+# DXCluster Cache
 
 **DXCluster Cache** is a lightweight Python service that connects to a **DX Cluster** and parses real-time DX spots, caches them in memory, enriches them with DXCC lookup data, and provides a **web portal** + **REST API** for viewing and managing spot data.
 
@@ -6,7 +6,7 @@ It is designed for amateur radio operators, logging servers (e.g. **WaveLog**, *
 
 ---
 
-## 🚀 Features
+## Features
 
 * **DX Cluster connection**
   Connects to any standard DXCluster node and parses incoming spots.
@@ -54,7 +54,7 @@ It is designed for amateur radio operators, logging servers (e.g. **WaveLog**, *
 
 ---
 
-## ⚙️ Configuration Files
+## Configuration Files
 
 ### `dxcluster_config.json`
 
@@ -93,7 +93,7 @@ You can edit this file manually or through the **“Edit Clusters”** dialog in
 
 ---
 
-## 🧩 REST API Reference
+## REST API Reference
 
 | Endpoint        | Method | Description                                          |
 | --------------- | ------ | ---------------------------------------------------- |
@@ -106,7 +106,7 @@ You can edit this file manually or through the **“Edit Clusters”** dialog in
 
 ---
 
-## 💻 Web Portal
+## Web Portal
 
 The built-in web interface runs on the configured port (default **8000**):
 
@@ -126,7 +126,7 @@ http://localhost:8000
 
 ---
 
-## 🧱 Installation Instructions
+## Installation Instructions
 
 ### 1. Install Dependencies
 
@@ -166,7 +166,7 @@ If credentials are missing, the portal will prompt you to create them.
 
 ---
 
-## 🔁 Install as a Systemd Service
+## Install as a Systemd Service
 
 ### 1. Copy the Service File
 
@@ -196,7 +196,7 @@ sudo journalctl -u dxcluster_cache -f
 
 ---
 
-## 🛠️ Updating the Service
+## Updating the Service
 
 When updating the code or configuration:
 
@@ -236,7 +236,7 @@ curl -X POST http://localhost:8000/sndspot \
 
 ---
 
-## 🧾 License
+## License
 
 This project is distributed under the **MIT License**.
 You are free to modify and use it for both personal and commercial purposes.
