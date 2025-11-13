@@ -1,0 +1,11 @@
+# Ignore the local configuration file
+dxcluster_config.json
+
+# Optional: ignore other common temporary files
+*.log
+*.tmp
+*.swp
+
+# Ignore Python cache directories
+__pycache__/
+*.pyc
