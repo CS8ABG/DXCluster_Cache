@@ -138,6 +138,14 @@ cd /opt/dxcluster_cache
 docker compose up -d
 ```
 
+Open in your browser:
+
+```
+http://localhost:8000
+```
+
+If credentials are missing, the portal will prompt you to create them.
+
 ---
 
 ## Installation Instructions
