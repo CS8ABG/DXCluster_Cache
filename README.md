@@ -127,6 +127,19 @@ http://localhost:8000
 
 ---
 
+## Installation Instructions (Docker)
+
+### Clone from Git and run docker:
+
+```bash
+
+sudo git clone https://github.com/CS8ABG/DXCluster_Cache.git /opt/dxcluster_cache
+cd /opt/dxcluster_cache
+docker compose up -d
+```
+
+---
+
 ## Installation Instructions
 
 ### 1. Install Dependencies
