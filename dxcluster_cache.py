@@ -49,18 +49,12 @@ from collections import deque
 import logging
 from functools import wraps
 
-# -----------------------------
-# Logging setup
-# -----------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-# -----------------------------
-# Config and persistence
-# -----------------------------
 CONFIG_FILE = Path("./dxcluster_config.json")
 CLUSTERS_FILE = Path("./clusters.txt")
 DEFAULT_CONFIG = {
@@ -77,7 +71,6 @@ DEFAULT_CONFIG = {
 
 _lock = threading.RLock()
 
-
 def load_config():
     if CONFIG_FILE.exists():
         try:
@@ -92,22 +85,16 @@ def load_config():
         save_config(DEFAULT_CONFIG)
         return DEFAULT_CONFIG.copy()
 
-
 def save_config(cfg):
     with CONFIG_FILE.open("w") as fh:
         json.dump(cfg, fh, indent=2)
 
-
 config = load_config()
 
-# -----------------------------
-# Spot cache and helpers
-# -----------------------------
 spots = deque(maxlen=config.get("maxcache", 500))
 consecutive_dxcc_errors = 0
 dxcc_cache = {}
 dxcc_cache_ttl = 3600  # 1 hour
-
 
 def qrg2band_khz(qrg_khz):
     try:
@@ -144,7 +131,6 @@ def qrg2band_khz(qrg_khz):
         return "70cm"
     return ""
 
-
 def to_uc_word(s):
     return " ".join(x.capitalize() for x in (s or "").split())
 
@@ -178,10 +164,6 @@ def send_spot(frequency, callsign, remarks):
         logging.error(f"Error sending spot: {e}")
         return False
 
-
-# -----------------------------
-# DXCC Lookup
-# -----------------------------
 def dxcc_lookup(call):
     global consecutive_dxcc_errors
     now = time.time()
@@ -219,10 +201,6 @@ def dxcc_lookup(call):
         logging.error(f"DXCC lookup exception for {call}: {e}")
         return None
 
-
-# -----------------------------
-# Telnet client
-# -----------------------------
 TELNET_RE = re.compile(
     r"DX\s+de\s+(?P<spotter>\S+):\s+(?P<freq>[0-9]+\.?[0-9]*)\s+(?P<spotted>\S+)\s+(?P<rest>.+?)\s+(?P<time>[0-9]{3,4}Z)"
 )
@@ -235,7 +213,6 @@ SHDX_RE = re.compile(
     r"(via\s+(?P<via>\S+)\s+)?(?P<message>.+?)" # optional via + message
     r"\s*<(?P<spotter>\S+)>$"                  # spotter callsign in <>
 )
-
 
 class DXClusterClient(threading.Thread):
     def __init__(self):
@@ -288,8 +265,8 @@ class DXClusterClient(threading.Thread):
                 if got_login:
                     logging.info(f"Login prompt detected — sending {call}")
                     self.tn.write(call.encode() + b"\n")
-                    logging.info("Sending sh/dx command.")
-                    self.tn.write(b"sh/dx/100\n")
+                    #logging.info("Sending sh/dx command.")
+                    #self.tn.write(b"sh/dx/100\n")
                 else:
                     logging.info("No login prompt found within timeout; proceeding anyway.")
 
@@ -388,7 +365,6 @@ class DXClusterClient(threading.Thread):
                     pass
             time.sleep(5)
 
-
 def parse_z_time(timestr):
     now = datetime.now(timezone.utc)
     t = timestr.rstrip("Z")
@@ -407,7 +383,6 @@ def parse_z_time(timestr):
         return when
     return datetime(now.year, now.month, now.day, 0, 0, 0, 0, tzinfo=timezone.utc)
 
-
 def detect_source_from_message(msg):
     m = msg.lower()
     if "pota" in m:
@@ -415,7 +390,6 @@ def detect_source_from_message(msg):
     if "cq" in m:
         return "cq"
     return "cluster"
-
 
 def populate_dxcc(spot):
     spotter, spotted = spot.get("spotter"), spot.get("spotted")
@@ -425,13 +399,8 @@ def populate_dxcc(spot):
     if s2:
         spot["dxcc_spotted"] = s2
 
-
-# -----------------------------
-# Web API + Portal
-# -----------------------------
 app = Flask(__name__)
 client = DXClusterClient()
-
 
 @app.route("/spots/")
 def api_spots():
@@ -460,7 +429,6 @@ def api_spots():
             mimetype="application/json"
         )
 
-
 @app.route("/spot/<int:qrg_khz>")
 def api_spot(qrg_khz):
     q = str(qrg_khz)
@@ -473,12 +441,10 @@ def api_spot(qrg_khz):
                     youngest, chosen = t, s
     return jsonify(chosen or {})
 
-
 @app.route("/spots/<band>")
 def api_spots_band(band):
     with _lock:
         return jsonify([s for s in spots if s.get("band") == band])
-
 
 @app.route("/stats")
 def api_stats():
@@ -486,337 +452,265 @@ def api_stats():
 
 PORTAL_HTML = """
 <!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>DXCluster Service Portal</title>
-<style>
-body { margin:0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#f4f4f8; color:#222; }
-h1,h2,h3 { margin:0; }
+    <html>
+        <head>
+            <meta charset="utf-8">
+            <title>DXCluster Service Portal</title>
+            <style>
+                body { margin:0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#f4f4f8; color:#222; }
+                h1,h2,h3 { margin:0; }
+                .topbar { background:#007bff; color:white; display:flex; align-items:center; justify-content:flex-end; padding:10px 20px; position:relative; }
+                .topbar .gear { font-size:18px; cursor:pointer; user-select:none; }
+                .topbar .gear:hover { font-weight: 600; }
+                .topbar .info { font-size:18px;  cursor:pointer; user-select:none; }
+                .topbar .info:hover { font-weight: 600; }
+                .dropdown { display:none; position:absolute; top:45px; right:20px; background:white; color:#222; box-shadow:0 3px 10px rgba(0,0,0,0.15); border-radius:6px; overflow:hidden; min-width:180px; z-index:2000; }
+                .dropdown a { display:block; padding:10px 15px; text-decoration:none; color:#222; font-weight:500; }
+                .dropdown a:hover { background:#f4f4f4; }
+                .spots-panel { margin: 30px auto; background: white; border-radius: 10px; padding: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); width: 90%; max-width: 1000px; }
+                .spots-panel h2 { margin-bottom: 10px; }
+                .footer { position:fixed; bottom:0; left:0; width:100%; background:#222; color:white; padding:10px 20px; display:flex; gap:25px; font-weight:600; align-items:center; }
+                .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:1000; overflow:auto; }
+                .modal-content { background:#fff; padding:20px; border-radius:10px; width:500px; max-width:90%; max-height:80%; overflow-y:auto; box-shadow:0 3px 10px rgba(0,0,0,0.2); }
+                .modal-content h3 { margin-top:0; }
+                .modal-row { display:flex; gap:5px; margin-bottom:6px; align-items:center; }
+                .modal-row input, .modal-row select { flex:1; padding:5px; border-radius:4px; border:1px solid #ccc; }
+                .modal-buttons { text-align:right; margin-top:10px; }
+                .modal-buttons button { margin-left:5px; padding:5px 10px; border-radius:4px; border:none; cursor:pointer; font-weight:600; }
+                .modal-buttons .save { background:#28a745; color:white; }
+                .modal-buttons .cancel { background:#dc3545; color:white; }
+                .cluster-remove { background:#dc3545; color:white; border:none; border-radius:4px; padding:5px 10px; cursor:pointer; font-weight:600;}
+                .cluster-add { background:#007bff; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer; font-weight:600;}
+            </style>
+        </head>
+        <body>
+            <!-- Top Bar -->
+            <div class="topbar">
+                <div style="display:flex; align-items:center; gap:20px;">
+                    <div class="gear" onclick="toggleDropdown()">Settings ▼</div>
+                    <div class="info" onclick="openHelpModal()">API</div>
+                </div>
 
-/* Top bar with gear dropdown */
-.topbar {
-    background:#007bff;
-    color:white;
-    display:flex;
-    align-items:center;
-    justify-content:flex-end;
-    padding:10px 20px;
-    position:relative;
-}
-.topbar .gear {
-    font-size:18px;
-    cursor:pointer;
-    user-select:none;
-}
-.topbar .gear:hover {
-    font-weight: 600;
-}
-.topbar .info {
-    font-size:18px;
-    cursor:pointer;
-    user-select:none;
-}
-.topbar .info:hover {
-    font-weight: 600;
-}
-.dropdown {
-    display:none;
-    position:absolute;
-    top:45px;
-    right:20px;
-    background:white;
-    color:#222;
-    box-shadow:0 3px 10px rgba(0,0,0,0.15);
-    border-radius:6px;
-    overflow:hidden;
-    min-width:180px;
-    z-index:2000;
-}
-.dropdown a {
-    display:block;
-    padding:10px 15px;
-    text-decoration:none;
-    color:#222;
-    font-weight:500;
-}
-.dropdown a:hover { background:#f4f4f4; }
-
-/* Panels */
-.spots-panel {
-    margin: 30px auto;
-    background: white;
-    border-radius: 10px;
-    padding: 10px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    width: 90%;
-    max-width: 1000px;
-}
-
-.spots-panel h2 {
-    margin-bottom: 10px;
-}
-
-/* Footer */
-.footer { position:fixed; bottom:0; left:0; width:100%; background:#222; color:white; padding:10px 20px; display:flex; gap:25px; font-weight:600; align-items:center; }
-
-/* Modal Styles */
-.modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:1000; overflow:auto; }
-.modal-content { background:#fff; padding:20px; border-radius:10px; width:500px; max-width:90%; max-height:80%; overflow-y:auto; box-shadow:0 3px 10px rgba(0,0,0,0.2); }
-.modal-content h3 { margin-top:0; }
-.modal-row { display:flex; gap:5px; margin-bottom:6px; align-items:center; }
-.modal-row input, .modal-row select { flex:1; padding:5px; border-radius:4px; border:1px solid #ccc; }
-.modal-buttons { text-align:right; margin-top:10px; }
-.modal-buttons button { margin-left:5px; padding:5px 10px; border-radius:4px; border:none; cursor:pointer; font-weight:600; }
-.modal-buttons .save { background:#28a745; color:white; }
-.modal-buttons .cancel { background:#dc3545; color:white; }
-.cluster-remove { background:#dc3545; color:white; border:none; border-radius:4px; padding:5px 10px; cursor:pointer; font-weight:600;}
-.cluster-add { background:#007bff; color:white; border:none; border-radius:4px; padding:6px 12px; cursor:pointer; font-weight:600;}
-</style>
-</head>
-<body>
-
-<!-- Top Bar -->
-<div class="topbar">
-  <div style="display:flex; align-items:center; gap:20px;">
-    <div class="gear" onclick="toggleDropdown()">Settings ▼</div>
-    <div class="info" onclick="openHelpModal()">API</div>
-  </div>
-
-  <div id="gearDropdown" class="dropdown">
-    <a href="#" onclick="openSetupModal();closeDropdown();">Setup</a>
-    <a href="#" onclick="openClusterModal();closeDropdown();">Edit Clusters</a>
-    <a href="#" onclick="restartClient();closeDropdown();">Restart DXCluster Client</a>
-    <a href="/logout" onclick="closeDropdown();">Logout</a>
-  </div>
-</div>
-
-<!-- Recent Spots Terminal -->
-<div class="spots-panel">
-  <h2>Recent Spots</h2>
-  <div style="overflow:auto; max-height:400px; border:1px solid #ccc; border-radius:8px;">
-    <table id="spotsTable" style="width:100%; border-collapse:collapse;">
-      <thead style="position:sticky; top:0; background:#007bff; color:white; z-index:1;">
-        <tr>
-          <th style="padding:4px;">Time</th>
-          <th style="padding:4px;">From</th>
-          <th style="padding:4px;">DX</th>
-          <th style="padding:4px;">Freq (kHz)</th>
-          <th style="padding:4px;">Band</th>
-          <th style="padding:4px;">Message</th>
-        </tr>
-      </thead>
-      <tbody id="spotsTableBody">
-        {% for s in recent %}
-        <tr>
-          <td>{{ s.when }}</td>
-          <td>{{ s.spotter }}</td>
-          <td>{{ s.spotted }}</td>
-          <td>{{ s.frequency }}</td>
-          <td>{{ s.band }}</td>
-          <td>{{ s.message|e|replace('\n',' ')|safe }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<!-- Send Spot Form -->
-<div class="spots-panel">
-  <h2>Send Spot</h2>
-  <form method="post" action="/sndspot" onsubmit="return sendSpotJS(event)">
-    <div class="modal-row">
-      <label>Frequency (kHz):</label>
-      <input name="frequency" id="spotFrequency" required>
-    </div>
-    <div class="modal-row">
-      <label>Callsign:</label>
-      <input name="callsign" id="spotCallsign" required>
-    </div>
-    <div class="modal-row">
-      <label>Remarks:</label>
-      <input name="remarks" id="spotRemarks">
-    </div>
-    <div class="modal-buttons">
-      <button type="submit" class="save">Send Spot</button>
-    </div>
-  </form>
-  <div id="spotStatus" style="margin-top:5px;"></div>
-</div>
-
-<!-- Footer -->
-<div class="footer">
-  <div id="connectionStatus">
-    DXCluster connection:
-    {% if connected %}
-      <span style="color:#28a745;">Connected</span>
-    {% else %}
-      <span style="color:#dc3545;">Disconnected</span>
-    {% endif %}
-  </div>
-  <div>Callsign: <strong>{{ cfg.call }}</strong></div>
-  <div>Connected to: <strong>{{ cfg.host }}:{{ cfg.port }}</strong></div>
-  <div id="cachedSpots">Cached spots: {{ entries }}</div>
-</div>
-
-<!-- Setup Modal -->
-<div id="setupModal" class="modal">
-  <div class="modal-content">
-    <h3>Service Setup</h3>
-    <form method="post" action="/config">
-      <div class="modal-row">
-        <label>Callsign:</label>
-        <input name="call" value="{{cfg.call}}" required>
-      </div>
-      <div class="modal-row">
-        <label>Cluster:</label>
-        <select name="cluster">
-          {% for c in clusters %}
-            {% set hp = c.hostport %}
-            <option value="{{ hp }}" {% if cfg.host + ':' + cfg.port|string == hp %}selected{% endif %}>
-              {{ c.name }} ({{ hp }})
-            </option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="modal-row">
-        <label>Max Cache:</label>
-        <input name="maxcache" type="number" value="{{cfg.maxcache}}" required>
-      </div>
-      <div class="modal-row">
-        <label>Web Port:</label>
-        <input name="webport" type="number" value="{{cfg.webport}}" required>
-      </div>
-      <div class="modal-row">
-        <label>Lookup URL:</label>
-        <input name="dxcc_lookup_url" value="{{cfg.dxcc_lookup_url}}" required>
-      </div>
-      <div class="modal-row">
-        <label>Lookup Key:</label>
-        <input name="dxcc_lookup_key" value="{{cfg.dxcc_lookup_key}}" required>
-      </div>
-      <div class="modal-buttons">
-        <button type="submit" class="save">Save</button>
-        <button type="button" class="cancel" onclick="closeSetupModal()">Cancel</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- Existing Cluster Edit Modal -->
-<div id="clusterModal" class="modal">
-  <div class="modal-content">
-    <h3>Edit Clusters</h3>
-    <form method="post" action="/clusters/save" id="clusterForm">
-      <div id="clusterList">
-        {% for c in clusters %}
-        <div class="modal-row">
-          <input name="name_{{ loop.index0 }}" value="{{ c.name }}" placeholder="Name">
-          <input name="hostport_{{ loop.index0 }}" value="{{ c.hostport }}" placeholder="host:port">
-          <button type="button" class="cluster-remove" onclick="removeClusterRow(this)">Remove</button>
-        </div>
-        {% endfor %}
-      </div>
-      <input type="hidden" name="count" id="clusterCount" value="{{ clusters|length }}">
-      <div class="modal-buttons">
-        <button type="button" class="cluster-add" onclick="addClusterRow()">+ Add Cluster</button>
-      </div>
-      <div class="modal-buttons">
-        <button type="submit" class="save">Save</button>
-        <button type="button" class="cancel" onclick="closeClusterModal()">Cancel</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- Help / Info Modal -->
-<div id="helpModal" class="modal">
-  <div class="modal-content">
-    <h3>API Information</h3>
-    <p>This service exposes a simple REST API for accessing and submitting DX spots.</p>
-    <h4>GET /spots</h4>
-    <p>Returns a JSON list of the cached spots.</p>
-    <pre><code>[
-  {
-    "spotter": "K1ABC",
-    "spotted": "DL1XYZ",
-    "frequency": "14074",
-    "message": "FT8 CQ DX",
-    "when": "2025-11-11T18:22:15Z",
-    "band": "20m",
-    "source": "cluster",
-    "dxcc_spotter": {...},
-    "dxcc_spotted": {...}
-  }
-]</code></pre>
-
-    <h4>GET /stats</h4>
-    <p>Returns status:</p>
-    <pre><code>{
-  "entries": 150,
-  "connected": true
-}</code></pre>
-
-    <h4>POST /sndspot</h4>
-    <p>Sends a new DX spot to the connected cluster node.</p>
-    <p><b>Request (JSON or form):</b></p>
-    <pre><code>{
-  "frequency": "14000",
-  "callsign": "K1ABC",
-  "remarks": "CQ DX via POTA"
-}</code></pre>
-    <p><b>Response:</b></p>
-    <pre><code>{
-  "status": "ok"
-}</code></pre>
-    <div class="modal-buttons">
-      <button type="button" class="cancel" onclick="closeHelpModal()">Close</button>
-    </div>
-  </div>
-</div>
-
-<!-- Credential Setup Modal (only appears if credentials missing) -->
-{% if not cfg.portal_user or not cfg.portal_pass %}
-<div id="credModal" class="modal" style="display:flex;">
-  <div class="modal-content">
-    <h3>Set Admin Credentials</h3>
-    <p>Before continuing, please create login credentials to secure your DXCluster portal.</p>
-    <form method="post" action="/portal/setup">
-      <div class="modal-row">
-        <label>Username:</label>
-        <input name="user" required placeholder="Enter username">
-      </div>
-      <div class="modal-row">
-        <label>Password:</label>
-        <input name="pass" type="password" required placeholder="Enter password">
-      </div>
-      <div class="modal-buttons">
-        <button type="submit" class="save">Save</button>
-      </div>
-    </form>
-  </div>
-</div>
-{% endif %}
-
+                <div id="gearDropdown" class="dropdown">
+                    <a href="#" onclick="openSetupModal();closeDropdown();">Setup</a>
+                    <a href="#" onclick="openClusterModal();closeDropdown();">Edit Clusters</a>
+                    <a href="#" onclick="restartClient();closeDropdown();">Restart DXCluster Client</a>
+                    <a href="/logout" onclick="closeDropdown();">Logout</a>
+                </div>
+            </div>
+            <!-- Recent Spots -->
+            <div class="spots-panel">
+                <h2>Recent Spots</h2>
+                <div style="overflow:auto; max-height:400px; border:1px solid #ccc; border-radius:8px;">
+                    <table id="spotsTable" style="width:100%; border-collapse:collapse;">
+                        <thead style="position:sticky; top:0; background:#007bff; color:white; z-index:1;">
+                            <tr>
+                            <th style="padding:4px;">Time</th>
+                            <th style="padding:4px;">From</th>
+                            <th style="padding:4px;">DX</th>
+                            <th style="padding:4px;">Freq (kHz)</th>
+                            <th style="padding:4px;">Band</th>
+                            <th style="padding:4px;">Message</th>
+                            </tr>
+                        </thead>
+                        <tbody id="spotsTableBody">
+                            {% for s in recent %}
+                            <tr>
+                            <td>{{ s.when }}</td>
+                            <td>{{ s.spotter }}</td>
+                            <td>{{ s.spotted }}</td>
+                            <td>{{ s.frequency }}</td>
+                            <td>{{ s.band }}</td>
+                            <td>{{ s.message|e|replace('\n',' ')|safe }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Send Spot Form -->
+            <div class="spots-panel">
+                <h2>Send Spot</h2>
+                <form method="post" action="/sndspot" onsubmit="return sendSpotJS(event)">
+                    <div class="modal-row">
+                        <label>Frequency (kHz):</label>
+                        <input name="frequency" id="spotFrequency" required>
+                    </div>
+                    <div class="modal-row">
+                        <label>Callsign:</label>
+                        <input name="callsign" id="spotCallsign" required>
+                    </div>
+                    <div class="modal-row">
+                        <label>Remarks:</label>
+                        <input name="remarks" id="spotRemarks">
+                    </div>
+                    <div class="modal-buttons">
+                        <button type="submit" class="save">Send Spot</button>
+                    </div>
+                </form>
+                <div id="spotStatus" style="margin-top:5px;"></div>
+            </div>
+            <!-- Footer -->
+            <div class="footer">
+                <div id="connectionStatus">
+                    DXCluster connection:
+                    {% if connected %}
+                    <span style="color:#28a745;">Connected</span>
+                    {% else %}
+                    <span style="color:#dc3545;">Disconnected</span>
+                    {% endif %}
+                </div>
+                <div>Callsign: <strong>{{ cfg.call }}</strong></div>
+                <div>Connected to: <strong>{{ cfg.host }}:{{ cfg.port }}</strong></div>
+                <div id="cachedSpots">Cached spots: {{ entries }}</div>
+            </div>
+            <!-- Setup Modal -->
+            <div id="setupModal" class="modal">
+                <div class="modal-content">
+                    <h3>Service Setup</h3>
+                    <form method="post" action="/config">
+                        <div class="modal-row">
+                            <label>Callsign:</label>
+                            <input name="call" value="{{cfg.call}}" required>
+                        </div>
+                        <div class="modal-row">
+                            <label>Cluster:</label>
+                            <select name="cluster">
+                            {% for c in clusters %}
+                                {% set hp = c.hostport %}
+                                <option value="{{ hp }}" {% if cfg.host + ':' + cfg.port|string == hp %}selected{% endif %}>
+                                {{ c.name }} ({{ hp }})
+                                </option>
+                            {% endfor %}
+                            </select>
+                        </div>
+                        <div class="modal-row">
+                            <label>Max Cache:</label>
+                            <input name="maxcache" type="number" value="{{cfg.maxcache}}" required>
+                        </div>
+                        <div class="modal-row">
+                            <label>Web Port:</label>
+                            <input name="webport" type="number" value="{{cfg.webport}}" required>
+                        </div>
+                        <div class="modal-row">
+                            <label>Lookup URL:</label>
+                            <input name="dxcc_lookup_url" value="{{cfg.dxcc_lookup_url}}" required>
+                        </div>
+                        <div class="modal-row">
+                            <label>Lookup Key:</label>
+                            <input name="dxcc_lookup_key" value="{{cfg.dxcc_lookup_key}}" required>
+                        </div>
+                        <div class="modal-buttons">
+                            <button type="submit" class="save">Save</button>
+                            <button type="button" class="cancel" onclick="closeSetupModal()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <!-- Existing Cluster Edit Modal -->
+            <div id="clusterModal" class="modal">
+                <div class="modal-content">
+                    <h3>Edit Clusters</h3>
+                    <form method="post" action="/clusters/save" id="clusterForm">
+                        <div id="clusterList">
+                            {% for c in clusters %}
+                            <div class="modal-row">
+                            <input name="name_{{ loop.index0 }}" value="{{ c.name }}" placeholder="Name">
+                            <input name="hostport_{{ loop.index0 }}" value="{{ c.hostport }}" placeholder="host:port">
+                            <button type="button" class="cluster-remove" onclick="removeClusterRow(this)">Remove</button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <input type="hidden" name="count" id="clusterCount" value="{{ clusters|length }}">
+                        <div class="modal-buttons">
+                            <button type="button" class="cluster-add" onclick="addClusterRow()">+ Add Cluster</button>
+                        </div>
+                        <div class="modal-buttons">
+                            <button type="submit" class="save">Save</button>
+                            <button type="button" class="cancel" onclick="closeClusterModal()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <!-- Help / Info Modal -->
+            <div id="helpModal" class="modal">
+                <div class="modal-content">
+                    <h3>API Information</h3>
+                    <p>This service exposes a simple REST API for accessing and submitting DX spots.</p>
+                    <h4>GET /spots</h4>
+                    <p>Returns a JSON list of the cached spots.</p>
+                    <pre><code>[
+                {
+                    "spotter": "K1ABC",
+                    "spotted": "DL1XYZ",
+                    "frequency": "14074",
+                    "message": "FT8 CQ DX",
+                    "when": "2025-11-11T18:22:15Z",
+                    "band": "20m",
+                    "source": "cluster",
+                    "dxcc_spotter": {...},
+                    "dxcc_spotted": {...}
+                }
+                ]</code></pre>
+                    <h4>GET /stats</h4>
+                    <p>Returns status:</p>
+                    <pre><code>{
+                "entries": 150,
+                "connected": true
+                }</code></pre>
+                    <h4>POST /sndspot</h4>
+                    <p>Sends a new DX spot to the connected cluster node.</p>
+                    <p><b>Request (JSON or form):</b></p>
+                    <pre><code>{
+                "frequency": "14000",
+                "callsign": "K1ABC",
+                "remarks": "CQ DX via POTA"
+                }</code></pre>
+                    <p><b>Response:</b></p>
+                    <pre><code>{
+                "status": "ok"
+                }</code></pre>
+                    <div class="modal-buttons">
+                    <button type="button" class="cancel" onclick="closeHelpModal()">Close</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Credential Setup Modal -->
+            {% if not cfg.portal_user or not cfg.portal_pass %}
+            <div id="credModal" class="modal" style="display:flex;">
+                <div class="modal-content">
+                    <h3>Set Admin Credentials</h3>
+                    <p>Before continuing, please create login credentials to secure your DXCluster portal.</p>
+                    <form method="post" action="/portal/setup">
+                        <div class="modal-row">
+                            <label>Username:</label>
+                            <input name="user" required placeholder="Enter username">
+                        </div>
+                        <div class="modal-row">
+                            <label>Password:</label>
+                            <input name="pass" type="password" required placeholder="Enter password">
+                        </div>
+                        <div class="modal-buttons">
+                            <button type="submit" class="save">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
 <script>
 // Dropdown control
 function toggleDropdown(){ const d=document.getElementById('gearDropdown'); d.style.display = (d.style.display==='block')?'none':'block'; }
 function closeDropdown(){ document.getElementById('gearDropdown').style.display='none'; }
 window.onclick = function(e){ if(!e.target.matches('.gear')) closeDropdown(); };
-
 // Setup modal
 function openSetupModal(){ document.getElementById('setupModal').style.display='flex'; }
 function closeSetupModal(){ document.getElementById('setupModal').style.display='none'; }
-
 // Help modal
 function openHelpModal(){ document.getElementById('helpModal').style.display='flex'; }
 function closeHelpModal(){ document.getElementById('helpModal').style.display='none'; }
-
 // Cluster modal
 function openClusterModal(){ document.getElementById('clusterModal').style.display='flex'; }
 function closeClusterModal(){ document.getElementById('clusterModal').style.display='none'; }
-
 // Add/remove cluster rows
 function addClusterRow(){
   const list=document.getElementById('clusterList');
@@ -834,18 +728,15 @@ function removeClusterRow(btn){
   btn.parentElement.remove();
   document.getElementById('clusterCount').value=document.querySelectorAll('#clusterList .modal-row').length;
 }
-
 // Restart client
 function restartClient(){
   fetch('/restart', {method:'POST'}).then(()=>alert('DXCluster client restarting...')).catch(err=>alert('Error: '+err));
 }
-
+// Fetch and update spots table
 function fetchSpots(){
   fetch('/spots/').then(r=>r.json()).then(data=>{
     const tbody = document.getElementById('spotsTableBody');
     tbody.innerHTML = '';
-
-    // Newest first
     data.forEach(s => {
       const tr = document.createElement('tr');
       tbody.appendChild(tr);
@@ -860,7 +751,17 @@ function fetchSpots(){
     });
   }).catch(console.error);
 }
-
+// Fetch and update cached spots count
+function fetchCachedSpots() {
+    fetch('/stats')
+        .then(response => response.json())
+        .then(data => {
+            const cached = document.getElementById('cachedSpots');
+            cached.textContent = `Cached spots: ${data.entries}`;
+        })
+        .catch(err => console.error('Failed to fetch cached spots:', err));
+}
+// Fetch and update connection status
 function fetchStatus() {
     fetch('/stats')
         .then(response => response.json())
@@ -878,13 +779,12 @@ function fetchStatus() {
             console.error('Failed to fetch status:', err);
         });
 }
-
+// Send spot via JS
 function sendSpotJS(event){
     event.preventDefault();
     const freq = document.getElementById('spotFrequency').value;
     const call = document.getElementById('spotCallsign').value;
     const remarks = document.getElementById('spotRemarks').value;
-
     fetch('/sndspot', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -906,13 +806,13 @@ function sendSpotJS(event){
     return false;
 }
 // Periodic updates
-setInterval(fetchSpots,5000);
-setInterval(fetchStatus,5000);
+setInterval(fetchSpots,2000);
+setInterval(fetchStatus,3000);
+setInterval(fetchCachedSpots, 5000);
 </script>
 </body>
 </html>
 """
-
 
 def check_auth(username, password):
     cfg = load_config()
@@ -961,7 +861,6 @@ def portal_index():
         clusters=clusters
     )
 
-
 @app.route("/config", methods=["POST"])
 @requires_auth
 def portal_config():
@@ -996,13 +895,11 @@ def save_clusters_route():
     save_clusters(clusters)
     return redirect(url_for("portal_index"))
 
-
 @app.route("/restart", methods=["POST"])
 @requires_auth
 def portal_restart():
     threading.Thread(target=restart_client, daemon=True).start()
     return redirect(url_for("portal_index"))
-
 
 def restart_client():
     global client
@@ -1034,7 +931,6 @@ def portal_logout():
     resp.headers['WWW-Authenticate'] = 'Basic realm="DXCluster Admin ' + str(time.time()) + '"'
     return resp
 
-# send telnet command
 @app.route("/sendcmd", methods=["POST"])
 @requires_auth
 def send_telnet_cmd():
@@ -1071,10 +967,6 @@ def sndspot():
     else:
         return jsonify({"status": "failed"}), 500
 
-
-# -----------------------------
-# Startup
-# -----------------------------
 if __name__ == "__main__":
     save_config(config)
     with _lock:

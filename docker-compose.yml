@@ -1,0 +1,11 @@
+services:
+  dxcluster:
+    build: .
+    container_name: dxcluster_cache
+    restart: unless-stopped
+    environment:
+      - WEB_PORT=8000
+    volumes:
+      - ./:/app
+    ports:
+      - "8000:8000"
